@@ -1,0 +1,40 @@
+const int buttonPin = 2; // Düymə D2 pininə (GND ilə)
+int buttonCount = 0;
+bool lastButtonState = LOW;
+
+void setup() {
+  // Hardware Serial 9600 baud (Pin 0 və 1)
+  Serial.begin(9600); 
+  
+  pinMode(buttonPin, INPUT);
+  pinMode(13, OUTPUT); // Diaqnostika LED-i
+  
+  // Başlanğıcda LED-i 2 dəfə yandır-söndür (sistemin başladığını bilmək üçün)
+  digitalWrite(13, HIGH); delay(200); digitalWrite(13, LOW);
+}
+
+void loop() {
+  // 1. Düyməni yoxla (Falling Edge)
+  bool currentState = digitalRead(buttonPin);
+  if (lastButtonState == LOW && currentState == HIGH) {
+    buttonCount++;
+    delay(150); // Debounce
+  }
+  lastButtonState = currentState;
+
+  // 2. STM32-dən gələn sorğunu gözlə
+  if (Serial.available() > 0) {
+    char cmd = Serial.read();
+    
+    if (cmd == 'R') {
+      // Sorğu gəldiyini göstərmək üçün LED-i yandır
+      digitalWrite(13, HIGH); 
+      
+      // Sayı göndər
+      Serial.print(buttonCount); 
+      
+      delay(50);
+      digitalWrite(13, LOW);
+    }
+  }
+}
