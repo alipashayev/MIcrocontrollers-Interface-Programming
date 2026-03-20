@@ -1,0 +1,96 @@
+/* USER CODE BEGIN 0 */
+char log_msg[100];
+uint8_t rx_buf[20];
+volatile uint8_t wake_up_now = 0;
+
+// Timer kəsilməsi (10 saniyədən bir bura girir)
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+	if (htim->Instance == TIM2) {
+		wake_up_now = 1;
+	}
+}
+/* USER CODE END 0 */
+
+/**
+ * @brief  The application entry point.
+ * @retval int
+ */
+int main(void) {
+
+	/* USER CODE BEGIN 1 */
+
+	/* USER CODE END 1 */
+
+	/* MCU Configuration--------------------------------------------------------*/
+
+	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
+
+	/* USER CODE BEGIN Init */
+
+	/* USER CODE END Init */
+
+	/* Configure the system clock */
+	SystemClock_Config();
+
+	/* USER CODE BEGIN SysInit */
+
+	/* USER CODE END SysInit */
+
+	/* Initialize all configured peripherals */
+	MX_GPIO_Init();
+	MX_TIM2_Init();
+	MX_USART1_UART_Init();
+	MX_USART2_UART_Init();
+	/* USER CODE BEGIN 2 */
+	HAL_Delay(1000);
+	HAL_TIM_Base_Start_IT(&htim2);
+	char *start_txt = "STM32 Ready. Waiting...\r\n";
+	HAL_UART_Transmit(&huart2, (uint8_t*) start_txt, strlen(start_txt), 100);
+
+	/* USER CODE END 2 */
+
+	/* Infinite loop */
+	/* USER CODE BEGIN WHILE */
+	while (1) {
+		/* USER CODE END WHILE */
+
+		/* USER CODE BEGIN 3 */
+
+		if (wake_up_now) {
+			// 1. Oyanandan sonra sistemin stabilləşməsi üçün qısa fasilə
+			HAL_Delay(200);
+
+			// 2. Arduinoya 'R' sorğusu göndər
+			uint8_t req = 'R';
+			HAL_UART_Transmit(&huart1, &req, 1, 100);
+
+			// 3. Məlumatı qəbul et (rx_buf-u təmizləyirik)
+			memset(rx_buf, 0, sizeof(rx_buf));
+
+			// 10 bayt gözləyirik, amma 1 saniyə ərzində nə gəlsə qəbul edirik
+			HAL_UART_Receive(&huart1, rx_buf, 10, 1000);
+
+			// 4. Əgər buffer-ə ən azı 1 simvol gəlibsə, onu çap et
+			if (rx_buf[0] != 0) {
+				static uint32_t total_seconds = 0;
+				total_seconds += 10;
+
+				// RealTerm-ə göndərilən format: [Zaman] Count: Rəqəm
+				int len = sprintf(log_msg, "[%lus] Count: %s", total_seconds,
+						(char*) rx_buf);
+				HAL_UART_Transmit(&huart2, (uint8_t*) log_msg, len, 100);
+			} else {
+				// Həqiqətən heç bir cavab yoxdursa
+				char *err = "Xeta: Arduino cavab vermir\r\n";
+				HAL_UART_Transmit(&huart2, (uint8_t*) err, strlen(err), 100);
+			}
+
+			wake_up_now = 0; // Flag-ı sıfırla
+		}
+
+		// 5. Yuxu rejiminə keç (WFI - Wait For Interrupt)
+		HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
+	}
+	/* USER CODE END 3 */
+}
